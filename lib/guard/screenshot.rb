@@ -18,6 +18,11 @@ module Guard
       super
 
       @options = DEFAULTS.merge(options)
+      @destination = @options[:destination] || 'screenshots'
+      @root_file   = Array(@options[:root_file])
+      @keep_paths = @options[:keep_paths] || false
+      @width = @options[:width] || 1024
+      @page = @options[:page] || 'index.html'
     end
 
     # Called once when Guard starts. Please override initialize method to init stuff.
@@ -27,6 +32,7 @@ module Guard
     #
     def start
         UI.info "Guard::Screenshot is running"
+        UI.debug "Guard::Screenshot.destination = #{@destination.inspect}"
     end
 
     # Called when `stop|quit|exit|s|q|e + enter` is pressed (when Guard quits).
@@ -63,7 +69,7 @@ module Guard
     #
     def run_on_changes(paths)
         UI.info 'changes'
-        # svg2png(paths)
+        shoot(paths)
     end
 
     # Called on file(s) additions that the Guard plugin watches.
@@ -73,8 +79,8 @@ module Guard
     # @return [Object] the task result
     #
     def run_on_additions(paths)
-        UI.info 'additions'
-        svg2png(paths)
+        UI.debug 'additions'
+        shoot(paths)
     end
 
     # Called on file(s) modifications that the Guard plugin watches.
@@ -84,8 +90,8 @@ module Guard
     # @return [Object] the task result
     #
     def run_on_modifications(paths)
-        UI.info 'modifications'
-        svg2png(paths)
+        UI.debug 'modifications'
+        shoot(paths)
     end
 
     # Called on file(s) removals that the Guard plugin watches.
@@ -95,26 +101,65 @@ module Guard
     # @return [Object] the task result
     #
     def run_on_removals(paths)
-        UI.info 'removals'
-        paths.each do |path|
-            dest = get_destination(path)
-            File.delete(dest)
+        UI.debug 'removals'
+        shoot(paths)
+    end
+
+    def shoot(paths)
+        paths.reject! { |p| p.start_with?(@destination)}
+
+        render if !paths.empty?
+    end
+
+    def render
+        path = @page
+        dest = get_destination(path)
+        output_path = Pathname.new(dest)
+        UI.info "Rendering to #{dest}"
+        FileUtils.mkdir_p(output_path.parent) unless output_path.parent.exist?
+
+        command = build_command(path, dest)
+
+        recent = find_most_recent
+        UI.debug recent
+        recent_md5 = Digest::MD5.file(recent).hexdigest
+
+        system command
+
+        dest_md5 = Digest::MD5.file(dest).hexdigest
+
+        if (recent_md5 == dest_md5) then
+            File.unlink(dest)
+            UI.info "File not saved - no visual changes."
         end
     end
 
-    
+    def build_command(source, dest)
 
-    def build_command(path)
-        source = path
-        dest = get_destination(path)
-
-        command = "convert -background none #{source} #{dest}"
+        command = "wkhtmltoimage --width #{@width} #{source} #{dest}"
     end
 
     def get_destination(path)
-        dest = File.dirname(path) + '/' + File.basename(path, File.extname(path)) + '.png'
+        path = Pathname.new(path)
+
+        timestamp = DateTime.now.strftime('%Y%m%d-%H%M%S--')
+
+        if (@keep_paths) then
+            dest = File.join(@destination, path.dirname.to_s, timestamp + path.basename(path.extname).to_s + '.png')
+        else
+            dest = File.join(@destination, timestamp + path.basename(path.extname).to_s + '.png')
+        end
+        dest
     end
 
+    def find_most_recent
+        dest = Pathname.new(@destination)
 
+        latest = dest.children(false).sort!.last
+
+        file = dest.join(latest)
+
+        file.to_s
+    end
   end
 end
