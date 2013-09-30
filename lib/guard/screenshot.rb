@@ -122,15 +122,17 @@ module Guard
 
         recent = find_most_recent
         UI.debug recent
-        recent_md5 = Digest::MD5.file(recent).hexdigest
 
         system command
 
-        dest_md5 = Digest::MD5.file(dest).hexdigest
+        if recent
+            recent_md5 = Digest::MD5.file(recent).hexdigest
+            dest_md5 = Digest::MD5.file(dest).hexdigest
 
-        if (recent_md5 == dest_md5) then
-            File.unlink(dest)
-            UI.info "File not saved - no visual changes."
+            if (recent_md5 == dest_md5) then
+                File.unlink(dest)
+                UI.info "File not saved - no visual changes."
+            end
         end
     end
 
@@ -157,7 +159,11 @@ module Guard
 
         latest = dest.children(false).sort!.last
 
-        file = dest.join(latest)
+        if latest then
+            file = dest.join(latest)
+        else
+            return nil
+        end
 
         file.to_s
     end
