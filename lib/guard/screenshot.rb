@@ -124,7 +124,7 @@ module Guard
         recent = find_most_recent
         UI.debug recent
 
-        Phantomjs.inline(command, path, dest, @width)
+        Phantomjs.inline(command, path, dest, @width.to_s)
 
         if recent
             recent_md5 = Digest::MD5.file(recent).hexdigest
