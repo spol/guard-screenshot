@@ -1,5 +1,6 @@
 require 'guard'
 require 'guard/guard'
+require 'phantomjs'
 
 module Guard
   class Screenshot < Guard
@@ -31,8 +32,8 @@ module Guard
     # @return [Object] the task result
     #
     def start
-        UI.info "Guard::Screenshot is running"
-        UI.debug "Guard::Screenshot.destination = #{@destination.inspect}"
+        # UI.info "Guard::Screenshot is running"
+        # UI.debug "Guard::Screenshot.destination = #{@destination.inspect}"
     end
 
     # Called when `stop|quit|exit|s|q|e + enter` is pressed (when Guard quits).
@@ -68,7 +69,7 @@ module Guard
     # @return [Object] the task result
     #
     def run_on_changes(paths)
-        UI.info 'changes'
+        # UI.info 'changes'
         shoot(paths)
     end
 
@@ -79,7 +80,7 @@ module Guard
     # @return [Object] the task result
     #
     def run_on_additions(paths)
-        UI.debug 'additions'
+        # UI.debug 'additions'
         shoot(paths)
     end
 
@@ -90,7 +91,7 @@ module Guard
     # @return [Object] the task result
     #
     def run_on_modifications(paths)
-        UI.debug 'modifications'
+        # UI.debug 'modifications'
         shoot(paths)
     end
 
@@ -101,7 +102,7 @@ module Guard
     # @return [Object] the task result
     #
     def run_on_removals(paths)
-        UI.debug 'removals'
+        # UI.debug 'removals'
         shoot(paths)
     end
 
@@ -118,12 +119,12 @@ module Guard
         UI.info "Rendering to #{dest}"
         FileUtils.mkdir_p(output_path.parent) unless output_path.parent.exist?
 
-        command = build_command(path, dest)
+        command = build_command
 
         recent = find_most_recent
         UI.debug recent
 
-        system command
+        Phantomjs.inline(command, path, dest, @width)
 
         if recent
             recent_md5 = Digest::MD5.file(recent).hexdigest
@@ -136,9 +137,20 @@ module Guard
         end
     end
 
-    def build_command(source, dest)
+    def build_command
 
-        command = "wkhtmltoimage --width #{@width} #{source} #{dest}"
+        # command = "wkhtmltoimage --width #{@width} #{source} #{dest}"
+        command = <<JS
+            var source = phantom.args[0];
+            var dest = phantom.args[1];
+            var width = phantom.args[2];
+            var page = require('webpage').create();
+            page.viewportSize = { width: width, height: 1 };
+            page.open(source, function () {
+                page.render(dest);
+                phantom.exit();
+            });
+JS
     end
 
     def get_destination(path)
